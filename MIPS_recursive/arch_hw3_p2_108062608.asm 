@@ -1,0 +1,209 @@
+.data
+str1:		.asciiz "input a: "
+str2:		.asciiz "input b: "
+str3:		.asciiz "ans: "
+Pnewline: 	.asciiz "\n"
+.text
+
+Main:
+	# declare a,b,c,d = 0
+	add $s0, $zero, $zero
+	add $s1, $zero, $zero
+	add $s2, $zero, $zero
+	add $s3, $zero, $zero
+	
+	# Prompt the user to enter int
+	la $a0, str1	   # load address of string to print
+	li $v0, 4	   # ready to print string
+	syscall            # print
+	       
+	# Get the a and store in $s0
+	li $v0, 5
+	syscall
+	add $s0, $zero, $v0
+	
+	
+	# Prompt the user to enter int
+	la $a0, str2	   # load address of string to print
+	li $v0, 4	   # ready to print string
+	syscall            # print
+	           
+	
+	# Get the b and store in $s1
+	li $v0, 5
+	syscall
+	add $s1, $zero, $v0
+	
+	move $a0, $s0
+	move $a1, $s1
+	jal re
+	move $s2, $v0 	   # assign c = re(a)
+	
+	# printf("ans: %d", c);
+	la $a0, str3	   # load address of string to print
+	li $v0, 4	   # ready to print string
+	syscall            # print
+
+	li $v0, 1
+	move $a0, $s2
+	syscall 	           
+	           
+	move $a0, $s1
+	move $a1, $s2         
+	jal fn
+	move $s3, $v0 	   # assign d = fn(b, c)
+	
+	# printf("ans: %d", d);
+	la $a0, str3	   # load address of string to print
+	li $v0, 4	   # ready to print string
+	syscall            # print
+
+	li $v0, 1
+	move $a0, $s3
+	syscall 
+	
+	# progm finish
+	j Exit    
+	
+	
+re: # int re(int x) 
+	addi $sp, $sp, -20
+	sw $ra, 0($sp)  
+	# for (x * x + x * re(x - 1) + (x - 1) * re(x - 2))
+	sw $s2, 4($sp)     # (x - 1) * re(x - 2)
+	sw $s1, 8($sp)     # x * re(x - 1)
+	sw $s0, 12($sp)     # x * x
+	sw $a0, 16($sp)
+	
+	addi $t0, $zero, 1 # since >= 2, must > 1
+	slt $t1, $t0, $a0  # test if x >= 2 
+	bne $t1, $zero, Do  # go do recursive part
+	
+	
+	# ((x == 1) ? 1 : 0)
+	addi $t0, $zero, 1 
+	beq $a0, $t0, Assign_one
+	addi $v0, $zero, 0  # x != 1, so x = 0
+	addi $sp, $sp, 20
+	jr $ra
+Assign_one:
+	addi $v0, $zero, 1  # x == 1, so x = 1
+	addi $sp, $sp, 20
+	jr $ra
+	
+Do:	
+	# Do  (x * x + x * re(x - 1) + (x - 1) * re(x - 2))
+	mul $s0, $a0, $a0  # t2 for x * x
+
+	addi $a0, $a0, -1  # x = x - 1
+	jal re
+	move $s1, $v0	   # get re(x - 1)
+	
+	addi $t2, $a0, 1   # t2 = x - 1 + 1
+	mul, $s1, $s1, $t2 # x * re(x - 1)
+	
+	addi $a0, $a0, -1  # x = x - 2
+	jal re             
+	move $s2, $v0      # get re(x - 2)
+	
+	addi $t2, $a0, 1  # t2 = x - 2 + 1
+	mul, $s2, $s2, $t2 # (x - 1) * re(x - 2)
+	
+	add $v0, $s0, $s1
+	add $v0, $v0, $s2
+	
+	
+	lw $ra, 0($sp)  
+	# for (x * x + x * re(x - 1) + (x - 1) * re(x - 2))
+	lw $s2, 4($sp)     # (x - 1) * re(x - 2)
+	lw $s1, 8($sp)     # x * re(x - 1)
+	lw $s0, 12($sp)     # x * x
+	lw $a0, 16($sp)
+	addi $sp, $sp, 20
+	
+	jr $ra
+	
+
+
+
+	
+							
+						
+fn: # int fn(int x, int y), x = b, y = c
+	addi $sp, $sp, -24
+	sw $a1, 20($sp)    # y
+	sw $a0, 16($sp)    # x
+	sw $ra, 12($sp)  
+	# for 3 * fn(x - 1, y) + 2 * fn(x, y - 1) + fn(x - 1, y - 1);
+	sw $s2, 8($sp)     # fn(x - 1, y - 1)
+	sw $s1, 4($sp)     # 2 * fn(x, y - 1)
+	sw $s0, 0($sp)     # 3 * fn(x - 1, y)
+	
+	
+	slti $t0, $a0, 1	    # since x <= 0, must < 1
+	bne $t0, $zero, Return_zero # since x <= 0, return 0
+	
+	slti $t0, $a1, 1            # since x <= 0, must < 1
+	bne $t0, $zero, Return_zero # since y <= 0, return 0 
+	
+	slt $t0, $a1, $a0           # x > y is true, return 2
+	bne $t0, $zero, Return_two  # since y <= 0, return 0
+	
+	
+	
+	# else
+	# return 3 * fn(x - 1, y) + 2 * fn(x, y - 1) + fn(x - 1, y - 1);
+	addi $t5, $zero, 3 	    # save for constant
+	# s0 for 3 * fn(x - 1, y)
+	addi $a0, $a0, -1           # x = x - 1, y the same
+	jal fn
+	
+	move $s0, $v0
+	mul $s0, $s0, $t5           # for 3 * fn(x - 1, y)
+
+
+	addi $a1, $a1, -1           # y = y - 1, x the same
+	addi $a0, $a0, 1
+	jal fn
+	
+	# t2 for 2 * fn(x, y - 1)
+	addi $t5, $zero, 2	    # for constant
+	move $s1, $v0               # fn(x, y - 1)
+	mul $s1, $s1, $t5          # 2 * fn(x, y - 1)	
+	
+	
+	addi $a0, $a0, -1           # y = y - 1, x = x - 1
+	jal fn
+
+	# t3 for fn(x - 1, y - 1)
+	move $s2, $v0               # fn(x - 1, y - 1)
+	
+	
+	add $v0, $s0, $s1 
+	add $v0, $v0, $s2  # t0 for (x * x + x * re(x - 1) + (x - 1) * re(x - 2))
+	
+	j Result
+	
+Return_zero:
+	addi $v0, $zero, 0
+	j Result
+	
+Return_two:
+	addi $v0, $zero, 2
+	j Result
+
+Result:
+	lw $a1, 20($sp)
+	lw $a0, 16($sp)
+	lw $ra, 12($sp)  
+	# for 3 * fn(x - 1, y) + 2 * fn(x, y - 1) + fn(x - 1, y - 1);
+	lw $s2, 8($sp)     # fn(x - 1, y - 1)
+	lw $s1, 4($sp)     # 2 * fn(x, y - 1)
+	lw $s0, 0($sp)     # 3 * fn(x - 1, y)
+	
+	addi $sp, $sp, 24
+	
+	jr $ra
+	
+Exit:
+	
